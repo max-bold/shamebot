@@ -5,6 +5,7 @@ from sqlmodel import SQLModel, Relationship, Field, create_engine, Session, sele
 class Member(SQLModel, table=True):
     user_id: int | None = Field(default=None, foreign_key="user.id", primary_key=True)
     chat_id: int | None = Field(default=None, foreign_key="chat.id", primary_key=True)
+    linkname: str = Field(default="")
 
 
 class Chat(SQLModel, table=True):
@@ -19,7 +20,7 @@ class User(SQLModel, table=True):
     chats: list["Chat"] = Relationship(back_populates="members", link_model=Member)
 
 
-engine = create_engine("sqlite:///sandbox/db4.db")
+engine = create_engine("sqlite:///:memory:")
 
 SQLModel.metadata.create_all(engine)
 
@@ -37,6 +38,11 @@ with Session(engine) as session:
     session.commit()
 
 with Session(engine) as session:
+    member = session.exec(select(Member).where(Member.user_id == 1, Member.chat_id == 1)).one()
+    member.linkname = "new_linkname"
+    session.commit()
+
+with Session(engine) as session:
     chat = session.exec(select(Chat).where(Chat.chatname == "chat1")).one()
     session.delete(chat)
     session.commit()
@@ -47,4 +53,4 @@ with Session(engine) as session:
     for chat in session.exec(select(Chat)).all():
         print(f"Chat: {chat.chatname}")
     for member in session.exec(select(Member)).all():
-        print(f"Member: user_id={member.user_id}, chat_id={member.chat_id}")
+        print(f"Member: user_id={member.user_id}, chat_id={member.chat_id}, name={member.linkname}")
