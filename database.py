@@ -2,6 +2,7 @@ from enum import Enum
 from sqlmodel import Field, Session, SQLModel, create_engine, select, Relationship
 from sqlalchemy import Column
 from sqlalchemy.types import JSON
+from aiogram.types import ContentType
 
 
 class ChatAdmin(SQLModel, table=True):
@@ -19,7 +20,8 @@ class ChatAdmin(SQLModel, table=True):
 class ChatMember(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", primary_key=True)
     chat_id: int = Field(foreign_key="chat.id", primary_key=True)
-    last_triger_time: float = Field(default=0.0)
+    last_trigger_time: float = Field(default=0.0)
+    last_notify_time: float = Field(default=0.0)
     is_muted: bool = Field(default=False)
 
     @classmethod
@@ -43,9 +45,12 @@ class User(SQLModel, table=True):
 
 
 class Triggers(Enum):
-    MESSAGE = "message"
+    TEXT = "text"
     VIDEO = "video"
-    SHORT = "short"
+    PHOTO = "photo"
+    VOICE = "voice"
+    VIDEO_NOTE = "video_note"
+    ANY = "any"
 
 
 class Chat(SQLModel, table=True):
@@ -59,40 +64,16 @@ class Chat(SQLModel, table=True):
         back_populates="chats",
         link_model=ChatMember,
     )
-    # Store list of triggers in a JSON column since plain Python lists don't map to SQL types
-    triggers: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    text_triggers: bool = Field(default=True)
+    photo_triggers: bool = Field(default=True)
+    video_triggers: bool = Field(default=True)
+    voice_triggers: bool = Field(default=True)
+    video_note_triggers: bool = Field(default=True)
     notify_time: float = Field(default=0.0)
     notify_max_time: float = Field(default=0.0)
+    notify_interval: float = Field(default=0.0)
     bot_is_admin: bool = Field(default=False)
     setup_complete: bool = Field(default=False)
-
-
-# def get_chat_admins(session: Session, chat_id: int) -> list[User]:
-#     chat = session.get(Chat, chat_id)
-#     if chat:
-#         return chat.admins
-#     return []
-
-
-# def get_chat_members(session: Session, chat_id: int) -> list[User]:
-#     chat = session.get(Chat, chat_id)
-#     if chat:
-#         return chat.members
-#     return []
-
-
-# def get_chats_by_admin_id(session: Session, user_id: int) -> list[Chat]:
-#     user = session.get(User, user_id)
-#     if user:
-#         return user.admin_in
-#     return []
-
-
-# def get_chats_by_member_id(session: Session, user_id: int) -> list[Chat]:
-#     user = session.get(User, user_id)
-#     if user:
-#         return user.chats
-#     return []
 
 
 def members_to_notify_by_chat(
@@ -104,8 +85,8 @@ def members_to_notify_by_chat(
         if (
             memcership
             and not memcership.is_muted
-            and (current_time - memcership.last_triger_time) >= chat.notify_time
-            and (current_time - memcership.last_triger_time) <= chat.notify_max_time
+            and (current_time - memcership.last_trigger_time) >= chat.notify_time
+            and (current_time - memcership.last_trigger_time) <= chat.notify_max_time
         ):
             members_to_notify.append(member)
 
@@ -113,11 +94,14 @@ def members_to_notify_by_chat(
 
 
 engine = create_engine("sqlite:///database.db")
-SQLModel.metadata.create_all(engine)
+
+
+def db_init() -> None:
+    SQLModel.metadata.create_all(engine)
 
 
 if __name__ == "__main__":
-    pass
+    db_init()
     # db_init()
     # with Session(engine) as session:
     #     user1 = User(id=1, user_name="Alice")
