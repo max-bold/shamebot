@@ -1,14 +1,12 @@
-from enum import Enum
 from sqlmodel import Field, Session, SQLModel, create_engine, select, Relationship
-from sqlalchemy import Column
-from sqlalchemy.types import JSON
-from aiogram.types import ContentType
 
 
 class ChatAdmin(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", primary_key=True)
     chat_id: int = Field(foreign_key="chat.id", primary_key=True)
     is_muted: bool = Field(default=False)
+    chat: "Chat" = Relationship(sa_relationship_kwargs={"viewonly": True})
+    user: "User" = Relationship(sa_relationship_kwargs={"viewonly": True})
 
     @classmethod
     def get(cls, session: Session, user_id: int, chat_id: int) -> "ChatAdmin | None":
@@ -23,6 +21,8 @@ class ChatMember(SQLModel, table=True):
     last_trigger_time: float = Field(default=0.0)
     last_notify_time: float = Field(default=0.0)
     is_muted: bool = Field(default=False)
+    chat: "Chat" = Relationship(sa_relationship_kwargs={"viewonly": True})
+    user: "User" = Relationship(sa_relationship_kwargs={"viewonly": True})
 
     @classmethod
     def get(cls, session: Session, user_id: int, chat_id: int) -> "ChatMember | None":
@@ -38,19 +38,16 @@ class User(SQLModel, table=True):
         back_populates="admins",
         link_model=ChatAdmin,
     )
-    chats: list["Chat"] = Relationship(
+    member_in: list["Chat"] = Relationship(
         back_populates="members",
         link_model=ChatMember,
     )
-
-
-class Triggers(Enum):
-    TEXT = "text"
-    VIDEO = "video"
-    PHOTO = "photo"
-    VOICE = "voice"
-    VIDEO_NOTE = "video_note"
-    ANY = "any"
+    memberships: list[ChatMember] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+    admin_memberships: list[ChatAdmin] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
 
 
 class Chat(SQLModel, table=True):
@@ -61,18 +58,25 @@ class Chat(SQLModel, table=True):
         link_model=ChatAdmin,
     )
     members: list[User] = Relationship(
-        back_populates="chats",
+        back_populates="member_in",
         link_model=ChatMember,
     )
-    text_triggers: bool = Field(default=True)
-    photo_triggers: bool = Field(default=True)
-    video_triggers: bool = Field(default=True)
-    voice_triggers: bool = Field(default=True)
-    video_note_triggers: bool = Field(default=True)
+    memberships: list[ChatMember] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+    admin_memberships: list[ChatAdmin] = Relationship(
+        sa_relationship_kwargs={"viewonly": True}
+    )
+
+    text_triggers: bool = Field(default=False)
+    photo_triggers: bool = Field(default=False)
+    video_triggers: bool = Field(default=False)
+    voice_triggers: bool = Field(default=False)
+    video_note_triggers: bool = Field(default=False)
+    join_triggers: bool = Field(default=False)
     notify_time: float = Field(default=0.0)
     notify_max_time: float = Field(default=0.0)
     notify_interval: float = Field(default=0.0)
-    bot_is_admin: bool = Field(default=False)
     setup_complete: bool = Field(default=False)
 
 

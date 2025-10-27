@@ -1,4 +1,3 @@
-from venv import create
 from sqlmodel import SQLModel, Relationship, Field, create_engine, Session, select
 
 
@@ -6,18 +5,28 @@ class Member(SQLModel, table=True):
     user_id: int | None = Field(default=None, foreign_key="user.id", primary_key=True)
     chat_id: int | None = Field(default=None, foreign_key="chat.id", primary_key=True)
     linkname: str = Field(default="")
+    chat: "Chat" = Relationship(sa_relationship_kwargs={"viewonly": True})
+    user: "User" = Relationship(sa_relationship_kwargs={"viewonly": True})
 
 
 class Chat(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     chatname: str = Field(default="")
-    members: list["User"] = Relationship(back_populates="chats", link_model=Member)
+    members: list["User"] = Relationship(
+        back_populates="chats",
+        link_model=Member,
+    )
+    memberships: list[Member] = Relationship(sa_relationship_kwargs={"viewonly": True})
 
 
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     username: str = Field(default="")
-    chats: list["Chat"] = Relationship(back_populates="members", link_model=Member)
+    chats: list["Chat"] = Relationship(
+        back_populates="members",
+        link_model=Member,
+    )
+    memberships: list[Member] = Relationship(sa_relationship_kwargs={"viewonly": True})
 
 
 engine = create_engine("sqlite:///:memory:")
@@ -38,7 +47,9 @@ with Session(engine) as session:
     session.commit()
 
 with Session(engine) as session:
-    member = session.exec(select(Member).where(Member.user_id == 1, Member.chat_id == 1)).one()
+    member = session.exec(
+        select(Member).where(Member.user_id == 1, Member.chat_id == 1)
+    ).one()
     member.linkname = "new_linkname"
     session.commit()
 
@@ -53,4 +64,10 @@ with Session(engine) as session:
     for chat in session.exec(select(Chat)).all():
         print(f"Chat: {chat.chatname}")
     for member in session.exec(select(Member)).all():
-        print(f"Member: user_id={member.user_id}, chat_id={member.chat_id}, name={member.linkname}")
+        print(
+            f"Member: user_id={member.user_id}, chat_id={member.chat_id}, name={member.linkname}"
+        )
+        print(member.chat, member.user)
+    # chat = session.get(Chat, 1)
+    # if chat:
+    #     print(f"Chat: {chat.memberships}")

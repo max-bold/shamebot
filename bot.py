@@ -50,14 +50,14 @@ async def media_handler(message: Message) -> None:
 @dp.message(F.left_chat_member)
 async def left_chat_member_handler(message: Message) -> None:
     logger.info(
-        f"Got left_chat_member message in chat '{message.chat.title}'. Ignoring."
+        f"Got F.left_chat_member message in chat '@{message.chat.title}'. Ignoring."
     )
 
 
 @dp.message(F.new_chat_members)
 async def new_chat_members_handler(message: Message) -> None:
     logger.info(
-        f"Got new_chat_members message in chat '{message.chat.title}'. Ignoring."
+        f"Got F.new_chat_members message in chat '@{message.chat.title}'. Ignoring."
     )
 
 
@@ -84,55 +84,63 @@ async def default_message_handler(message: Message) -> None:
     logger.info(f"Unhandled message: {type(message)}: {message}")
 
 
-@dp.my_chat_member(F.new_chat_member.status == "member")
+@dp.my_chat_member(
+    (F.chat.id < 0)
+    & (F.new_chat_member.status == "member")
+    & (F.old_chat_member.status == "administrator")
+)
+async def bot_demoted_handler(data: ChatMemberUpdated) -> None:
+    logger.info(f"Bot lost admin rights in chat: {data.chat.id} - '{data.chat.title}'")
+    try:
+        await bot.send_message(
+            data.from_user.id,
+            f"Кажется вы удалили меня из администраторов чата {data.chat.title}!\n\nТеперь у не смогу видеть сообщения участников!",
+        )
+    except TelegramForbiddenError:
+        logger.warning(
+            f"Cannot send message to user {data.from_user.id}. They might have blocked the bot or didn't start a chat."
+        )
+
+
+@dp.my_chat_member((F.new_chat_member.status == "member") & (F.chat.id < 0))
 # Handler for when the bot is added to a chat
 async def bot_added_handler(data: ChatMemberUpdated) -> None:
-    if data.chat.id < 0:
-        logger.info(
-            f"Bot got status 'member' in chat: {data.chat.id} - '{data.chat.title}'"
+    logger.info(
+        f"Bot was added to chat '@{data.chat.title}' by '@{data.from_user.username}'"
+    )
+    try:
+        await bot.send_message(
+            data.from_user.id,
+            f"Спасибо за добавление меня в чат '@{data.chat.title}'!\n\nТеперь меня надо назначить администратором этой группы, что-бы я мог видеть сообщения других участников.",
         )
-        if not dbh.bot_is_admin_in_chat(data.chat):
-            logger.info(f"Bot was added to chat: {data.chat.id} - '{data.chat.title}'")
-            try:
-                await bot.send_message(
-                    data.from_user.id,
-                    f"Спасибо за добавление меня в чат {data.chat.title}!\n\nТеперь меня надо назначить администратором этой группы, что-бы я мог видеть сообщения других участников.",
-                )
-            except TelegramForbiddenError:
-                logger.warning(
-                    f"Cannot send message to user {data.from_user.id}. They might have blocked the bot or didn't start a chat."
-                )
-            dbh.bot_added_to_chat(data.chat, data.from_user)
-        else:
-            logger.info(
-                f"Bot lost admin rights in chat: {data.chat.id} - '{data.chat.title}'"
-            )
-            try:
-                await bot.send_message(
-                    data.from_user.id,
-                    f"Кажется вы удалили меня из администраторов чата {data.chat.title}!\n\nТеперь у не смогу видеть сообщения участников!",
-                )
-            except TelegramForbiddenError:
-                logger.warning(
-                    f"Cannot send message to user {data.from_user.id}. They might have blocked the bot or didn't start a chat."
-                )
-            dbh.set_bot_is_admin(data.chat, False)
-    else:
-        logger.info(f"'@{data.from_user.username}' started private chat with bot.")
+    except TelegramForbiddenError:
+        logger.warning(
+            f"Cannot send message to user '@{data.from_user.id}'. They might have blocked the bot or didn't start a chat."
+        )
+    dbh.bot_added_to_chat(data.chat, data.from_user)
+    dbh.setup_test_chat(data.chat.id)
+
+
+@dp.my_chat_member((F.new_chat_member.status == "member") & (F.chat.id > 0))
+# Handler for when the bot is started in a private chat
+async def bot_started_private_chat_handler(data: ChatMemberUpdated) -> None:
+    logger.info(f"'@{data.from_user.username}' started private chat with bot.")
 
 
 @dp.my_chat_member(F.new_chat_member.status.in_({"left", "kicked"}))
 # Handler for when the bot is removed from a chat
 async def bot_left_handler(data: ChatMemberUpdated) -> None:
-    logger.info(f"Bot removed from chat: {data.chat.id} - '{data.chat.title}'")
+    logger.info(
+        f"Bot was kicked from chat '@{data.chat.title}' by '@{data.from_user.username}'"
+    )
     try:
         await bot.send_message(
             data.from_user.id,
-            f"Жаль, что вы удалили меня из чата {data.chat.title}.\n\nМожете рассказать, почему?",
+            f"Жаль, что вы удалили меня из чата '@{data.chat.title}'.\n\nМожете рассказать, почему?",
         )
     except TelegramForbiddenError:
         logger.warning(
-            f"Cannot send message to user {data.from_user.id}. They might have blocked the bot or didn't start a chat."
+            f"Cannot send message to user '@{data.from_user.id}'. They might have blocked the bot or didn't start a chat."
         )
     dbh.bot_deleted_from_chat(data.chat)
 
@@ -156,9 +164,9 @@ async def bot_made_admin_handler(data: ChatMemberUpdated) -> None:
         logger.warning(
             f"Cannot send message to user {data.from_user.id}. They might have blocked the bot or didn't start a chat."
         )
-    dbh.set_bot_is_admin(data.chat, True)
     admins = await bot.get_chat_administrators(data.chat.id)
     dbh.add_chat_admins(data.chat, admins)
+    dbh.setup_test_chat(data.chat.id)
 
 
 @dp.my_chat_member()
@@ -182,7 +190,7 @@ async def user_demoted_handler(data: ChatMemberUpdated) -> None:
 @dp.chat_member(F.new_chat_member.status == "member")
 async def user_added_handler(data: ChatMemberUpdated) -> None:
     logger.info(
-        f"User '@{data.new_chat_member.user.username}' got 'member' status in chat '{data.chat.title}'"
+        f"User '@{data.new_chat_member.user.username}' was added to '@{data.chat.title}' by '@{data.from_user.username}'"
     )
     dbh.user_joined_chat(data.chat.id, data.new_chat_member.user)
 
@@ -212,28 +220,45 @@ async def chat_member_handler(chat_member: ChatMemberUpdated) -> None:
 
 async def notify_sleepy_members() -> None:
     while True:
-        logger.info("Running notify_sleepy_members task")
-        with db.Session(db.engine) as session:
-            for chat in dbh.get_chats_to_notify(session):
-                members = dbh.get_members_to_notify(session, chat)
-                for member in members:
-                    member_user = dbh.get_user_by_id(session, member.user_id)
-                    if member_user:
-                        for admin in chat.admins:
-                            try:
-                                await bot.send_message(
-                                    admin.id,
-                                    f"Привет! Похоже @{member_user.user_name} не проявлял активности в чате '{chat.chat_name}'. Напомни ему правила чата!",
-                                )
-                                member.last_notify_time = time()
-                                logger.info(
-                                    f"Notified '@{admin.user_name}' about inactivity of '@{member_user.user_name}' in chat '{chat.chat_name}'"
-                                )
-                            except TelegramForbiddenError:
-                                logger.warning(
-                                    f"Cannot send notification to user @{admin.user_name}. They might have blocked the bot or didn't start a chat."
-                                )
-                session.commit()
+        # logger.info("Running notify_sleepy_members task")
+        with dbh.get_session() as session:
+            chats = dbh.get_chats_to_notify(session)
+            logger.info(f"Searching for chats to notify.")
+            for chat in chats:
+                logger.info(f"Checking chat '@{chat.chat_name}' for sleepy members.")
+                for membership in chat.memberships:
+                    if (
+                        not membership.is_muted
+                        and membership.last_trigger_time
+                        and (time() - membership.last_trigger_time) > chat.notify_time
+                        and (time() - membership.last_trigger_time)
+                        < chat.notify_max_time
+                        and (time() - membership.last_notify_time)
+                        > chat.notify_interval
+                    ):
+                        logger.info(
+                            f"Notifying admins about sleepy member '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
+                        )
+                        user = membership.user
+                        for admin_membership in chat.admin_memberships:
+                            if not admin_membership.is_muted:
+                                admin = admin_membership.user
+                                try:
+                                    await bot.send_message(
+                                        admin.id,
+                                        f"Привет! Похоже @{user.user_name} не проявлял активности в чате @{chat.chat_name}. Напомни ему правила чата!",
+                                    )
+                                    logger.info(
+                                        f"Notified '@{admin.user_name}' about inactivity of '@{user.user_name}' in chat '@{chat.chat_name}'"
+                                    )
+                                except TelegramForbiddenError:
+                                    logger.warning(
+                                        f"Cannot send notification to user @{admin.user_name}. They might have blocked the bot or didn't start a chat."
+                                    )
+                        logger.info(
+                            f"Updating last_notify_time for '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
+                        )
+                        membership.last_notify_time = time()
         await asyncio.sleep(60)
 
 

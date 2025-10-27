@@ -1,8 +1,10 @@
 from math import log
+from typing import Generator
 import database as db
 import aiogram.types as atypes
 import logging
 from time import time
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +35,6 @@ def add_user(user: atypes.User) -> None:
             session.commit()
 
 
-# def delete_chat(chat: atypes.Chat) -> None:
-#     with db.Session(db.engine) as session:
-#         db_chat = session.get(db.Chat, chat.id)
-#         if db_chat:
-#             logger.info(f"Deleting chat: {db_chat}")
-#             session.delete(db_chat)
-#             session.commit()
-#         else:
-#             logger.info(f"Chat with id {chat.id} not found in database.")
-
-
 def bot_added_to_chat(chat: atypes.Chat, user: atypes.User) -> None:
     with db.Session(db.engine) as session:
         db_chat = session.get(db.Chat, chat.id)
@@ -52,7 +43,7 @@ def bot_added_to_chat(chat: atypes.Chat, user: atypes.User) -> None:
         else:
             db_chat = db.Chat(id=chat.id, chat_name=chat.title if chat.title else "")
             session.add(db_chat)
-            logger.info(f"Added new chat: {chat.id} - '{chat.title}' to database")
+            logger.info(f"Added new chat '@{chat.title}' to database")
         db_user = session.get(db.User, user.id)
         if db_user:
             logger.info(f"User with id {user.id} already exists in database.")
@@ -61,15 +52,15 @@ def bot_added_to_chat(chat: atypes.Chat, user: atypes.User) -> None:
                 id=user.id, user_name=user.username if user.username else ""
             )
             session.add(db_user)
-            logger.info(f"Added new user: {user.id} - '@{user.username}'")
+            logger.info(f"Added new user '@{user.username}' to database.")
         if db_user not in db_chat.members:
             db_chat.members.append(db_user)
             logger.info(
-                f"Added user '@{db_user.user_name}' to chat '@{db_chat.chat_name}'"
+                f"Added user '@{db_user.user_name}' to members of chat '@{db_chat.chat_name}'"
             )
         else:
             logger.info(
-                f"User '@{db_user.user_name}' already in chat '@{db_chat.chat_name}'"
+                f"User '@{db_user.user_name}' already is a member of chat '@{db_chat.chat_name}'"
             )
         session.commit()
 
@@ -78,31 +69,8 @@ def bot_deleted_from_chat(chat: atypes.Chat) -> None:
     with db.Session(db.engine) as session:
         db_chat = session.get(db.Chat, chat.id)
         if db_chat:
-            logger.info(f"Deleting chat {chat.id} - '{chat.title}' from database.")
+            logger.info(f"Deleting chat '@{chat.title}' from database.")
             session.delete(db_chat)
-            session.commit()
-        else:
-            logger.info(f"Chat with id {chat.id} not found in database.")
-
-
-def bot_is_admin_in_chat(chat: atypes.Chat) -> bool:
-    logger.info(f"Checking if bot is admin in chat id {chat.id} - '{chat.title}'")
-    with db.Session(db.engine) as session:
-        db_chat = session.get(db.Chat, chat.id)
-        if db_chat:
-            logger.info(f"bot_is_admin = {db_chat.bot_is_admin}")
-            return db_chat.bot_is_admin
-        else:
-            logger.info(f"Chat with id {chat.id} not found in database.")
-            return False
-
-
-def set_bot_is_admin(chat: atypes.Chat, status: bool):
-    logger.info(f"Setting bot_is_admin= {status} for chat id {chat.id}")
-    with db.Session(db.engine) as session:
-        db_chat = session.get(db.Chat, chat.id)
-        if db_chat:
-            db_chat.bot_is_admin = status
             session.commit()
         else:
             logger.info(f"Chat with id {chat.id} not found in database.")
@@ -191,10 +159,17 @@ def user_joined_chat(chat_id: int, user: atypes.User) -> None:
         else:
             logger.info(f"User with id {user.id} already exists in database.")
         if db_user not in db_chat.members:
-            db_chat.members.append(db_user)
+            # db_chat.members.append(db_user)
+            membership = db.ChatMember(user_id=db_user.id, chat_id=db_chat.id)
+            session.add(membership)
             logger.info(
                 f"Added user '@{db_user.user_name}' to members of chat '@{db_chat.chat_name}'"
             )
+            if db_chat.join_triggers:
+                membership.last_trigger_time = time()
+                logger.info(
+                    f"Chat '@{db_chat.chat_name}' has join_triggers enabled. Setting last_trigger_time for user '@{db_user.user_name}'."
+                )
         session.commit()
 
 
@@ -327,7 +302,7 @@ def got_message(message: atypes.Message) -> None:
                 )
         else:
             logger.info(
-                f"No membership record for user '@{db_user.user_name}' in chat '@{db_chat.chat_name}'. Creating new record."
+                f"User '@{db_user.user_name}' is not a member of chat '@{db_chat.chat_name}'. Nothing to trigger."
             )
         session.commit()
 
@@ -337,37 +312,35 @@ def get_chats_to_notify(session: db.Session) -> list[db.Chat]:
     return list(chats)
 
 
-def get_members_to_notify(session: db.Session, chat: db.Chat) -> list[db.ChatMember]:
-    if chat.notify_interval and chat.notify_time and chat.notify_max_time:
-        ct = time()
-        members = session.exec(
-            db.select(db.ChatMember).where(
-                db.ChatMember.chat_id == chat.id,
-                db.ChatMember.is_muted == False,
-                (ct - db.ChatMember.last_notify_time) >= chat.notify_interval,
-                (ct - db.ChatMember.last_trigger_time) >= chat.notify_time,
-                (ct - db.ChatMember.last_trigger_time) <= chat.notify_max_time,
-            )
-        ).all()
-
-        return list(members)
-    else:
-        return []
-    
-def get_user_by_id(session: db.Session, user_id: int) -> db.User | None:
-    return session.get(db.User, user_id)
-
-def update_member_last_notify_time(session: db.Session, member_id: int, chat_id: int) -> None:
+def update_member_last_notify_time(
+    session: db.Session, member_id: int, chat_id: int
+) -> None:
+    membership = db.ChatMember.get(session, member_id, chat_id)
+    with db.Session(db.engine) as session:
+        if membership:
+            membership.last_notify_time = time()
+            session.commit()
 
 
-# def get_members_to_notify(chat: db.Chat, current_time: float) -> list[db.User]:
-#     with db.Session(db.engine) as session:
-#         members = session.exec(
-#             db.select(db.ChatMember).where(
-#                 db.ChatMember.chat_id == chat_id,
-#                 db.ChatMember.is_muted == False,
-#                 (time() - db.ChatMember.last_notify_time) >= chat.notify_interval,
-#                 (time() - db.ChatMember.last_trigger_time) >= chat.notify_time,
-#             )
-#         ).all()
-#         return list(members)
+@contextmanager
+def get_session() -> Generator[db.Session, None, None]:
+    with db.Session(db.engine) as session:
+        yield session
+        session.commit()
+
+
+def setup_test_chat(chat_id: int):
+    logger.info(f"Setting up test chat with id {chat_id} in database.")
+    with db.Session(db.engine) as session:
+        chat = session.get(db.Chat, chat_id)
+        if chat:
+            chat.setup_complete = True
+            chat.join_triggers = True
+            chat.text_triggers = True
+            chat.notify_interval=10
+            chat.notify_time=60
+            chat.notify_max_time=600
+            session.commit()
+            logger.info(f"Chat with id {chat_id} marked as setup complete.")
+        else:
+            logger.info(f"Chat with id {chat_id} not found in database.")
