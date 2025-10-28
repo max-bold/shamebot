@@ -1,6 +1,26 @@
 from math import log
-from typing import Generator
-import database as db
+from modulefinder import Module
+from typing import Generator, TYPE_CHECKING
+
+import sys
+
+
+if TYPE_CHECKING:
+    import database as db
+else:
+    if "streamlit" in sys.modules:
+        import streamlit as st
+
+        @st.cache_resource
+        def get_models():
+            import database as db
+
+            return db
+
+        db = get_models()
+    else:
+        import database as db
+
 import aiogram.types as atypes
 import logging
 from time import time
@@ -177,6 +197,7 @@ def promote_user_to_admin(chat_id: int, user: atypes.User) -> None:
     with db.Session(db.engine) as session:
         db_chat = session.get(db.Chat, chat_id)
         if not db_chat:
+            db_chat = db.Chat(id=chat_id)
             logger.info(f"Chat with id {chat_id} not found in database.")
             return
         db_user = session.get(db.User, user.id)
@@ -337,10 +358,130 @@ def setup_test_chat(chat_id: int):
             chat.setup_complete = True
             chat.join_triggers = True
             chat.text_triggers = True
-            chat.notify_interval=10
-            chat.notify_time=60
-            chat.notify_max_time=600
+            chat.notify_interval = 10
+            chat.notify_time = 60
+            chat.notify_max_time = 600
             session.commit()
             logger.info(f"Chat with id {chat_id} marked as setup complete.")
         else:
             logger.info(f"Chat with id {chat_id} not found in database.")
+
+
+def get_all_users() -> list[db.User]:
+    with db.Session(db.engine) as session:
+        users = session.exec(db.select(db.User)).all()
+        return list(users)
+
+
+def get_chats_by_admin(admin_id: int) -> list[db.Chat]:
+    with db.Session(db.engine) as session:
+        admin = session.get(db.User, admin_id)
+        if not admin:
+            logger.info(f"Admin with id {admin_id} not found in database.")
+            return []
+        return admin.admin_in
+
+
+def get_chat(chat_id: int) -> db.Chat | None:
+    with db.Session(db.engine) as session:
+        chat = session.get(db.Chat, chat_id)
+        return chat
+
+
+def save_chat_settings(chat: db.Chat) -> bool:
+    with db.Session(db.engine) as session:
+        try:
+            db_chat = session.get(db.Chat, chat.id)
+            if not db_chat:
+                logger.info(f"Chat with id {chat.id} not found in database.")
+                return False
+            db_chat.text_triggers = chat.text_triggers
+            db_chat.photo_triggers = chat.photo_triggers
+            db_chat.video_triggers = chat.video_triggers
+            db_chat.voice_triggers = chat.voice_triggers
+            db_chat.video_note_triggers = chat.video_note_triggers
+            db_chat.join_triggers = chat.join_triggers
+            db_chat.notify_time = chat.notify_time
+            db_chat.notify_max_time = chat.notify_max_time
+            db_chat.notify_interval = chat.notify_interval
+            db_chat.setup_complete = True
+            session.commit()
+        except:
+            return False
+        return True
+
+
+def get_chat_admins(chat_id: int):
+    with db.Session(db.engine) as session:
+        chat = session.get(db.Chat, chat_id)
+        if not chat:
+            logger.info(f"Chat with id {chat_id} not found in database.")
+            return []
+        return zip(chat.admins, chat.admin_memberships)
+
+
+def save_admin_settings(settings: list, chat_id: int) -> bool:
+    with db.Session(db.engine) as session:
+        for row in settings:
+            try:
+                admin_id = row["Admin ID"]
+                admin = session.get(db.User, admin_id)
+                if not admin:
+                    logger.info(f"Admin with id {admin_id} not found in database.")
+                    return False
+                membership = db.ChatAdmin.get(session, admin_id, chat_id)
+                if not membership:
+                    logger.info(
+                        f"Membership for admin id {admin_id} in chat id {chat_id} not found in database."
+                    )
+                    return False
+                membership.is_muted = row["Is Muted"]
+            except Exception as e:
+                logger.error(
+                    f"Error updating admin settings for chat id {chat_id}: {e}"
+                )
+                return False
+        session.commit()
+        return True
+
+
+def get_chat_members(chat_id: int):
+    with db.Session(db.engine) as session:
+        chat = session.get(db.Chat, chat_id)
+        if not chat:
+            logger.info(f"Chat with id {chat_id} not found in database.")
+            return []
+        return zip(chat.members, chat.memberships)
+
+
+def save_member_settings(settings: list, chat_id: int) -> bool:
+    with db.Session(db.engine) as session:
+        for row in settings:
+            try:
+                member_id = row["Member ID"]
+                membership = db.ChatMember.get(session, member_id, chat_id)
+                if not membership:
+                    logger.info(
+                        f"Admin membership for member id {member_id} not found in database."
+                    )
+                    return False
+                membership.is_muted = row["Is Muted"]
+            except Exception as e:
+                logger.error(
+                    f"Error updating member settings for chat id {chat_id}: {e}"
+                )
+                return False
+        session.commit()
+        return True
+
+
+def delete_chat(chat_id: int) -> bool:
+    with db.Session(db.engine) as session:
+        db_chat = session.get(db.Chat, chat_id)
+        if not db_chat:
+            logger.info(f"Chat with id {chat_id} not found in database.")
+            return False
+        session.delete(db_chat)
+        session.commit()
+        logger.info(f"Deleted chat with id {chat_id} from database.")
+        return True

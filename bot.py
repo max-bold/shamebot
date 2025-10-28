@@ -118,7 +118,7 @@ async def bot_added_handler(data: ChatMemberUpdated) -> None:
             f"Cannot send message to user '@{data.from_user.id}'. They might have blocked the bot or didn't start a chat."
         )
     dbh.bot_added_to_chat(data.chat, data.from_user)
-    dbh.setup_test_chat(data.chat.id)
+    # dbh.setup_test_chat(data.chat.id)
 
 
 @dp.my_chat_member((F.new_chat_member.status == "member") & (F.chat.id > 0))
@@ -148,12 +148,13 @@ async def bot_left_handler(data: ChatMemberUpdated) -> None:
 @dp.my_chat_member(F.new_chat_member.status == "administrator")
 # Handler for when the bot is made an admin in a chat
 async def bot_made_admin_handler(data: ChatMemberUpdated) -> None:
-    logger.info(f"Bot made admin in chat: {data.chat.id} - {data.chat.title}")
+    logger.info(f"Bot was made admin in chat: '{data.chat.id}' - '{data.chat.title}' by '@{data.from_user.username}'")
     try:
         if not dbh.chat_setup_complete(data.chat):
             await bot.send_message(
                 data.from_user.id,
-                f"Ага! Вижу вы назначили меня администратором в чате {data.chat.title}!\n\nТеперь можем приступить к [настройке](http://link.com)",
+                f"Ага\\! Вижу вы назначили меня администратором в чате {data.chat.title}\\! Теперь можем приступить к [настройке](http://localhost:8501/?admin={data.from_user.id})",
+                parse_mode=ParseMode.MARKDOWN_V2,
             )
         else:
             await bot.send_message(
@@ -166,7 +167,7 @@ async def bot_made_admin_handler(data: ChatMemberUpdated) -> None:
         )
     admins = await bot.get_chat_administrators(data.chat.id)
     dbh.add_chat_admins(data.chat, admins)
-    dbh.setup_test_chat(data.chat.id)
+    # dbh.setup_test_chat(data.chat.id)
 
 
 @dp.my_chat_member()
@@ -246,7 +247,7 @@ async def notify_sleepy_members() -> None:
                                 try:
                                     await bot.send_message(
                                         admin.id,
-                                        f"Привет! Похоже @{user.user_name} не проявлял активности в чате @{chat.chat_name}. Напомни ему правила чата!",
+                                        f"Привет! Похоже @{user.user_name} давно не проявлял активности в чате {chat.chat_name}. Напомни ему правила чата!",
                                     )
                                     logger.info(
                                         f"Notified '@{admin.user_name}' about inactivity of '@{user.user_name}' in chat '@{chat.chat_name}'"
@@ -259,7 +260,7 @@ async def notify_sleepy_members() -> None:
                             f"Updating last_notify_time for '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
                         )
                         membership.last_notify_time = time()
-        await asyncio.sleep(60)
+        await asyncio.sleep(10)
 
 
 async def main() -> None:
