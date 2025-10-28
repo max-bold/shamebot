@@ -1,5 +1,6 @@
 import streamlit as st
 import db_handlers as dbh
+import pandas as pd
 
 
 st.title("Shamebot Administration Panel")
@@ -8,13 +9,30 @@ st.title("Shamebot Administration Panel")
 params = st.query_params
 admin_id = params.get("admin")
 
+chat_id = None
+
 with st.sidebar:
     st.text(f"Admin ID: {admin_id}")
     st.header("Select chat")
     if admin_id:
+        chats = {}
+        # chatids = []
         for chat in dbh.get_chats_by_admin(int(admin_id)):
-            if st.button(f"**{chat.chat_name}**\n\n{chat.id}"):
-                st.session_state["selected_chat_id"] = chat.id
+            # if st.button(f"**{chat.chat_name}**\n\n{chat.id}"):
+            #     st.session_state["selected_chat_id"] = chat.id
+            chats[chat.id] = chat.chat_name
+
+        def radio_format(key: int) -> str:
+            return f"**{chats[key]}** (*{key}*)"
+
+        chat_id = st.radio(
+            "Select chat",
+            chats.keys(),
+            label_visibility="collapsed",
+            index=None,
+            format_func=radio_format,
+        )
+        # st.text(f"selected: {chat_id}")
 
 
 @st.dialog("Delete chat", dismissible=False)
@@ -32,8 +50,9 @@ def chat_delete_confirmation(chat_id: int):
         st.rerun()
 
 
-if "selected_chat_id" in st.session_state:
-    chat_id = st.session_state["selected_chat_id"]
+# if "selected_chat_id" in st.session_state:
+if chat_id:
+    # chat_id = st.session_state["selected_chat_id"]
     chat = dbh.get_chat(chat_id)
     if chat:
         st.header(f"{chat.chat_name}")
@@ -102,7 +121,7 @@ if "selected_chat_id" in st.session_state:
 
     with st.container(border=True):
         st.subheader("Chat admins")
-        admins = dbh.get_chat_admins(st.session_state["selected_chat_id"])
+        admins = dbh.get_chat_admins(chat_id)
         data = []
         for admin, admin_membership in admins:
             data.append(
@@ -119,9 +138,7 @@ if "selected_chat_id" in st.session_state:
         )
         if not edited_df == data:
             if st.button("Save Admin Changes", icon=":material/save:"):
-                if dbh.save_admin_settings(
-                    edited_df, st.session_state["selected_chat_id"]
-                ):
+                if dbh.save_admin_settings(edited_df, chat_id):
                     st.success("Admin settings updated successfully!")
                 else:
                     st.error("Failed to update admin settings.")
