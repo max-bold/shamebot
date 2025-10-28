@@ -11,7 +11,8 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message, ChatMemberUpdated, Chat, chat_member_banned
 from aiogram.exceptions import TelegramForbiddenError
 import db_handlers as dbh
-import database as db
+
+# import database as db
 
 from keys import token
 
@@ -148,7 +149,9 @@ async def bot_left_handler(data: ChatMemberUpdated) -> None:
 @dp.my_chat_member(F.new_chat_member.status == "administrator")
 # Handler for when the bot is made an admin in a chat
 async def bot_made_admin_handler(data: ChatMemberUpdated) -> None:
-    logger.info(f"Bot was made admin in chat: '{data.chat.id}' - '{data.chat.title}' by '@{data.from_user.username}'")
+    logger.info(
+        f"Bot was made admin in chat: '{data.chat.id}' - '{data.chat.title}' by '@{data.from_user.username}'"
+    )
     try:
         if not dbh.chat_setup_complete(data.chat):
             await bot.send_message(
@@ -227,44 +230,46 @@ async def notify_sleepy_members() -> None:
             logger.info(f"Searching for chats to notify.")
             for chat in chats:
                 logger.info(f"Checking chat '@{chat.chat_name}' for sleepy members.")
-                for membership in chat.memberships:
-                    if (
-                        not membership.is_muted
-                        and membership.last_trigger_time
-                        and (time() - membership.last_trigger_time) > chat.notify_time
-                        and (time() - membership.last_trigger_time)
-                        < chat.notify_max_time
-                        and (time() - membership.last_notify_time)
-                        > chat.notify_interval
-                    ):
-                        logger.info(
-                            f"Notifying admins about sleepy member '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
-                        )
-                        user = membership.user
-                        for admin_membership in chat.admin_memberships:
-                            if not admin_membership.is_muted:
-                                admin = admin_membership.user
-                                try:
-                                    await bot.send_message(
-                                        admin.id,
-                                        f"Привет! Похоже @{user.user_name} давно не проявлял активности в чате {chat.chat_name}. Напомни ему правила чата!",
-                                    )
-                                    logger.info(
-                                        f"Notified '@{admin.user_name}' about inactivity of '@{user.user_name}' in chat '@{chat.chat_name}'"
-                                    )
-                                except TelegramForbiddenError:
-                                    logger.warning(
-                                        f"Cannot send notification to user @{admin.user_name}. They might have blocked the bot or didn't start a chat."
-                                    )
-                        logger.info(
-                            f"Updating last_notify_time for '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
-                        )
-                        membership.last_notify_time = time()
-        await asyncio.sleep(10)
+                for membership in dbh.get_members_to_notify_by_chat(
+                    session, chat, time()
+                ):
+                    # if (
+                    #     not membership.is_muted
+                    #     and membership.last_trigger_time
+                    #     and (time() - membership.last_trigger_time) > chat.notify_time
+                    #     and (time() - membership.last_trigger_time)
+                    #     < chat.notify_max_time
+                    #     and (time() - membership.last_notify_time)
+                    #     > chat.notify_interval
+                    # ):
+                    logger.info(
+                        f"Notifying admins about sleepy member '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
+                    )
+                    user = membership.user
+                    for admin_membership in chat.admin_memberships:
+                        if not admin_membership.is_muted:
+                            admin = admin_membership.user
+                            try:
+                                await bot.send_message(
+                                    admin.id,
+                                    f"Привет! Похоже @{user.user_name} давно не проявлял активности в чате {chat.chat_name}. Напомни ему правила чата!",
+                                )
+                                logger.info(
+                                    f"Notified '@{admin.user_name}' about inactivity of '@{user.user_name}' in chat '@{chat.chat_name}'"
+                                )
+                            except TelegramForbiddenError:
+                                logger.warning(
+                                    f"Cannot send notification to user @{admin.user_name}. They might have blocked the bot or didn't start a chat."
+                                )
+                    logger.info(
+                        f"Updating last_notify_time for '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
+                    )
+                    membership.last_notify_time = time()
+        await asyncio.sleep(60)
 
 
 async def main() -> None:
-    db.db_init()
+    dbh.db_init()
     logger.info("Starting notify_sleepy_members task")
     asyncio.create_task(notify_sleepy_members())
     logger.info("Starting polling")

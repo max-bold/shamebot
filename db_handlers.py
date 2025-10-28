@@ -29,6 +29,10 @@ from contextlib import contextmanager
 logger = logging.getLogger(__name__)
 
 
+def db_init() -> None:
+    db.SQLModel.metadata.create_all(db.engine)
+
+
 def add_chat(chat: atypes.Chat) -> None:
     new_chat = db.Chat(id=chat.id, chat_name=chat.title if chat.title else "")
     logger.info(f"Adding new chat: {new_chat}")
@@ -485,3 +489,19 @@ def delete_chat(chat_id: int) -> bool:
         session.commit()
         logger.info(f"Deleted chat with id {chat_id} from database.")
         return True
+
+
+def get_members_to_notify_by_chat(
+    session: db.Session, chat: db.Chat, current_time: float
+) -> list[db.ChatMember]:
+    memberships = session.exec(
+        db.select(db.ChatMember).where(
+            db.ChatMember.chat_id == chat.id,
+            db.ChatMember.is_muted == False,
+            (current_time - db.ChatMember.last_trigger_time) > chat.notify_time,
+            (current_time - db.ChatMember.last_trigger_time) < chat.notify_max_time,
+            (current_time - db.ChatMember.last_notify_time) > chat.notify_interval,
+        )
+    ).all()
+
+    return list(memberships)
