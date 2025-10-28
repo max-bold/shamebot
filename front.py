@@ -41,29 +41,34 @@ if "selected_chat_id" in st.session_state:
         st.checkbox("Setup Complete", value=chat.setup_complete, disabled=True)
         with st.container(border=True):
             col1, col2 = st.columns(2)
+
+            def item_changed() -> None:
+                st.session_state["chat_settings_changed"] = True
+
+            edited_chat = chat.model_copy()
             with col1:
                 st.subheader("Trigger Settings")
-                chat.text_triggers = st.toggle(
+                edited_chat.text_triggers = st.toggle(
                     "Text Triggers", value=chat.text_triggers
                 )
-                chat.photo_triggers = st.toggle(
+                edited_chat.photo_triggers = st.toggle(
                     "Photo Triggers", value=chat.photo_triggers
                 )
-                chat.video_triggers = st.toggle(
+                edited_chat.video_triggers = st.toggle(
                     "Video Triggers", value=chat.video_triggers
                 )
-                chat.voice_triggers = st.toggle(
+                edited_chat.voice_triggers = st.toggle(
                     "Voice Triggers", value=chat.voice_triggers
                 )
-                chat.video_note_triggers = st.toggle(
+                edited_chat.video_note_triggers = st.toggle(
                     "Video Note Triggers", value=chat.video_note_triggers
                 )
-                chat.join_triggers = st.toggle(
+                edited_chat.join_triggers = st.toggle(
                     "Join Chat Triggers", value=chat.join_triggers
                 )
             with col2:
                 st.subheader("Notification Settings")
-                chat.notify_time = (
+                edited_chat.notify_time = (
                     st.number_input(
                         "Notification Time (hours)",
                         value=chat.notify_time / 3600,
@@ -71,7 +76,7 @@ if "selected_chat_id" in st.session_state:
                     )
                     * 3600
                 )
-                chat.notify_max_time = (
+                edited_chat.notify_max_time = (
                     st.number_input(
                         "Max Notification Time (hours)",
                         value=chat.notify_max_time / 3600,
@@ -79,7 +84,7 @@ if "selected_chat_id" in st.session_state:
                     )
                     * 3600
                 )
-                chat.notify_interval = (
+                edited_chat.notify_interval = (
                     st.number_input(
                         "Notification Interval (hours)",
                         value=chat.notify_interval / 3600,
@@ -87,36 +92,39 @@ if "selected_chat_id" in st.session_state:
                     )
                     * 3600
                 )
-            if st.button("Save Settings"):
-                if dbh.save_chat_settings(chat):
-                    st.success("Settings updated successfully!")
-                else:
-                    st.error("Failed to update settings.")
+            if not edited_chat == chat:
+                if st.button("Save Settings", icon=":material/save:"):
+                    if dbh.save_chat_settings(edited_chat):
+                        st.success("Settings updated successfully!")
+                        st.session_state["chat_settings_changed"] = False
+                    else:
+                        st.error("Failed to update settings.")
 
     with st.container(border=True):
         st.subheader("Chat admins")
         admins = dbh.get_chat_admins(st.session_state["selected_chat_id"])
-        with st.table():
-            st.write("Admin Name (ID) - Is Muted")
-            data = []
-            for admin, admin_membership in admins:
-                data.append(
-                    {
-                        "Admin Name": f"@{admin.user_name}",
-                        "Admin ID": admin.id,
-                        "Is Muted": admin_membership.is_muted,
-                    }
-                )
-            edited_df = st.data_editor(
-                data,
-                disabled=["Admin Name", "Admin ID"],
-                column_config={"Admin ID": st.column_config.TextColumn()},
+        data = []
+        for admin, admin_membership in admins:
+            data.append(
+                {
+                    "Admin Name": f"@{admin.user_name}",
+                    "Admin ID": admin.id,
+                    "Is Muted": admin_membership.is_muted,
+                }
             )
-        if st.button("Save Admin Changes"):
-            if dbh.save_admin_settings(edited_df, st.session_state["selected_chat_id"]):
-                st.success("Admin settings updated successfully!")
-            else:
-                st.error("Failed to update admin settings.")
+        edited_df = st.data_editor(
+            data,
+            disabled=["Admin Name", "Admin ID"],
+            column_config={"Admin ID": st.column_config.TextColumn()},
+        )
+        if not edited_df == data:
+            if st.button("Save Admin Changes", icon=":material/save:"):
+                if dbh.save_admin_settings(
+                    edited_df, st.session_state["selected_chat_id"]
+                ):
+                    st.success("Admin settings updated successfully!")
+                else:
+                    st.error("Failed to update admin settings.")
 
     with st.container(border=True):
         st.subheader("Chat members")
@@ -135,11 +143,14 @@ if "selected_chat_id" in st.session_state:
             disabled=["Member Name", "Member ID"],
             column_config={"Member ID": st.column_config.TextColumn()},
         )
-        if st.button("Save Member Changes"):
-            if dbh.save_member_settings(edited_df, chat_id):
-                st.success("Member settings updated successfully!")
-            else:
-                st.error("Failed to update member settings.")
-
-    if st.button("Delete chat from db", type="primary"):
-        chat_delete_confirmation(chat_id)
+        if not edited_df == data:
+            if st.button("Save Member Changes", icon=":material/save:"):
+                if dbh.save_member_settings(edited_df, chat_id):
+                    st.success("Member settings updated successfully!")
+                else:
+                    st.error("Failed to update member settings.")
+    with st.expander("Danger Zone", expanded=False, icon=":material/dangerous:"):
+        if st.button("Delete chat from db", type="primary", icon=":material/delete:"):
+            chat_delete_confirmation(chat_id)
+else:
+    st.text("Please select a chat from the sidebar to manage its settings.")
