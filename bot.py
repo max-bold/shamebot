@@ -7,8 +7,15 @@ from time import time
 from aiogram import Bot, Dispatcher, html, Router, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
-from aiogram.types import Message, ChatMemberUpdated, Chat, chat_member_banned
+from aiogram.filters import CommandStart, Command
+from aiogram.types import (
+    Message,
+    ChatMemberUpdated,
+    Chat,
+    chat_member_banned,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from aiogram.exceptions import TelegramForbiddenError
 import db_handlers as dbh
 
@@ -42,8 +49,26 @@ async def command_start_handler(message: Message) -> None:
     logger.info(
         f"Got '/start' command from '@{message.from_user.username if message.from_user else 'unknown'}'"
     )
+
     await message.answer(
         'Привет!\n\nЯ бот для управления уведомления о "спящих" участниках в групповых чатах.\n\nМеня нужно добавить в групповой чат и назначить администратором, чтобы я мог видеть сообщения участников и помогать с уведомлениями.\n\nСправишься?'
+    )
+
+
+@dp.message(Command("admin"))
+# Handler for the /admin command
+async def command_admin_handler(message: Message) -> None:
+    logger.info(
+        f"Got '/admin' command from '@{message.from_user.username if message.from_user else 'unknown'}'"
+    )
+    url = f"https://shamebot-admin.up.railway.app/?admin={message.from_user.id}"  # <- сюда свой URL
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="Панель настроек", url=url)]]
+    )
+    await message.answer(
+        "Вот ссылка на панель администратора для управления моими настройками:",
+        reply_markup=kb,
     )
 
 
@@ -164,7 +189,7 @@ async def bot_made_admin_handler(data: ChatMemberUpdated) -> None:
         if not dbh.chat_setup_complete(data.chat):
             await bot.send_message(
                 data.from_user.id,
-                f"Ага\\! Вижу вы назначили меня администратором в чате {data.chat.title}\\! Теперь можем приступить к [настройке](http://localhost:8501/?admin={data.from_user.id})",
+                f"Ага\\! Вижу вы назначили меня администратором в чате {data.chat.title}\\! Теперь можем приступить к [настройке](https://shamebot-admin.up.railway.app/?admin={data.from_user.id})",
                 parse_mode=ParseMode.MARKDOWN_V2,
             )
         else:
