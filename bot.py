@@ -24,6 +24,11 @@ import logging
 # logging.basicConfig(
 #     filename="bot.log", level=logging.INFO, encoding="utf-8", filemode="w", force=True
 # )
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+
 logger = logging.getLogger(__name__)
 
 bot = Bot(token)
