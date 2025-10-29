@@ -15,6 +15,7 @@ from aiogram.types import (
     chat_member_banned,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    message,
 )
 from aiogram.exceptions import TelegramForbiddenError
 import db_handlers as dbh
@@ -61,15 +62,30 @@ async def command_admin_handler(message: Message) -> None:
     logger.info(
         f"Got '/admin' command from '@{message.from_user.username if message.from_user else 'unknown'}'"
     )
-    url = f"https://shamebot-admin.up.railway.app/?admin={message.from_user.id}"  # <- сюда свой URL
+    if message.from_user:
+        url = f"https://shamebot-admin.up.railway.app/?admin={message.from_user.id}"  # <- сюда свой URL
 
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Панель настроек", url=url)]]
-    )
-    await message.answer(
-        "Вот ссылка на панель администратора для управления моими настройками:",
-        reply_markup=kb,
-    )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="Панель настроек", url=url)]]
+        )
+        try:
+            await message.answer(
+                "Вот ссылка на панель администратора для управления моими настройками:",
+                reply_markup=kb,
+            )
+        except TelegramForbiddenError:
+            logger.warning(
+                f"Cannot send admin panel link to user {message.from_user.id}. They might have blocked the bot or didn't start a chat."
+            )
+    else:
+        try:
+            await message.answer(
+                "Не могу определить ваш пользовательский идентификатор. Пожалуйста, начните чат со мной в личных сообщениях и попробуйте снова."
+            )
+        except TelegramForbiddenError:
+            logger.warning(
+                f"Cannot send message to user {message.from_user}."
+            )
 
 
 @dp.message((F.text | F.photo | F.voice | F.video_note | F.video) & (F.chat.id < 0))
@@ -187,10 +203,15 @@ async def bot_made_admin_handler(data: ChatMemberUpdated) -> None:
     )
     try:
         if not dbh.chat_setup_complete(data.chat):
+            url = f"https://shamebot-admin.up.railway.app/?admin={data.from_user.id}"  # <- сюда свой URL
+
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="Панель настроек", url=url)]]
+            )
             await bot.send_message(
                 data.from_user.id,
-                f"Ага\\! Вижу вы назначили меня администратором в чате {data.chat.title}\\! Теперь можем приступить к [настройке](https://shamebot-admin.up.railway.app/?admin={data.from_user.id})",
-                parse_mode=ParseMode.MARKDOWN_V2,
+                f"Ага! Вижу вы назначили меня администратором в чате {data.chat.title}! Теперь можем приступить к настройке.",
+                reply_markup=kb,
             )
         else:
             await bot.send_message(
