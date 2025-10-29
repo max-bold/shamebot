@@ -1,9 +1,9 @@
 from sqlmodel import Field, Session, SQLModel, create_engine, select, Relationship
-
+from sqlalchemy import BigInteger
 
 class ChatAdmin(SQLModel, table=True):
-    user_id: int = Field(foreign_key="user.id", primary_key=True)
-    chat_id: int = Field(foreign_key="chat.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True, sa_type=BigInteger)
+    chat_id: int = Field(foreign_key="chat.id", primary_key=True, sa_type=BigInteger)
     is_muted: bool = Field(default=False)
     chat: "Chat" = Relationship(sa_relationship_kwargs={"viewonly": True})
     user: "User" = Relationship(sa_relationship_kwargs={"viewonly": True})
@@ -16,8 +16,8 @@ class ChatAdmin(SQLModel, table=True):
 
 
 class ChatMember(SQLModel, table=True):
-    user_id: int = Field(foreign_key="user.id", primary_key=True)
-    chat_id: int = Field(foreign_key="chat.id", primary_key=True)
+    user_id: int = Field(foreign_key="user.id", primary_key=True, sa_type=BigInteger)
+    chat_id: int = Field(foreign_key="chat.id", primary_key=True, sa_type=BigInteger)
     last_trigger_time: float = Field(default=0.0)
     last_notify_time: float = Field(default=0.0)
     is_muted: bool = Field(default=False)
@@ -32,7 +32,7 @@ class ChatMember(SQLModel, table=True):
 
 
 class User(SQLModel, table=True):
-    id: int = Field(primary_key=True)
+    id: int = Field(primary_key=True, sa_type=BigInteger)
     user_name: str = Field(default="")
     admin_in: list["Chat"] = Relationship(
         back_populates="admins",
@@ -51,7 +51,7 @@ class User(SQLModel, table=True):
 
 
 class Chat(SQLModel, table=True):
-    id: int = Field(primary_key=True)
+    id: int = Field(primary_key=True, sa_type=BigInteger)
     chat_name: str = Field(default="")
     admins: list[User] = Relationship(
         back_populates="admin_in",
