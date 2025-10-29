@@ -14,13 +14,16 @@ import db_handlers as dbh
 
 # import database as db
 
-from keys import token
+# from keys import token
+token = getenv("BOTKEY")
+if not token:
+    raise RuntimeError("BOTKEY environment variable not set")
 
 import logging
 
-logging.basicConfig(
-    filename="bot.log", level=logging.INFO, encoding="utf-8", filemode="w", force=True
-)
+# logging.basicConfig(
+#     filename="bot.log", level=logging.INFO, encoding="utf-8", filemode="w", force=True
+# )
 logger = logging.getLogger(__name__)
 
 bot = Bot(token)

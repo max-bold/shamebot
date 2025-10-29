@@ -97,7 +97,7 @@ def members_to_notify_by_chat(
     return members_to_notify
 
 
-engine = create_engine("sqlite:///database.db")
+engine = create_engine("postgresql://postgres:DUeszCCfwEObyTBtRbsnIerGrSQvWKgS@postgres.railway.internal:5432/railway")
 
 
 def db_init() -> None:
