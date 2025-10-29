@@ -2,3 +2,4 @@ aiogram
 fastapi
 sqlmodel
 streamlit
+psycopg2
