@@ -281,21 +281,12 @@ async def notify_sleepy_members() -> None:
         # logger.info("Running notify_sleepy_members task")
         with dbh.get_session() as session:
             chats = dbh.get_chats_to_notify(session)
-            logger.info(f"Searching for chats to notify.")
+            # logger.info(f"Searching for chats to notify.")
             for chat in chats:
-                logger.info(f"Checking chat '@{chat.chat_name}' for sleepy members.")
+                # logger.info(f"Checking chat '@{chat.chat_name}' for sleepy members.")
                 for membership in dbh.get_members_to_notify_by_chat(
                     session, chat, time()
                 ):
-                    # if (
-                    #     not membership.is_muted
-                    #     and membership.last_trigger_time
-                    #     and (time() - membership.last_trigger_time) > chat.notify_time
-                    #     and (time() - membership.last_trigger_time)
-                    #     < chat.notify_max_time
-                    #     and (time() - membership.last_notify_time)
-                    #     > chat.notify_interval
-                    # ):
                     logger.info(
                         f"Notifying admins about sleepy member '@{membership.user.user_name}' in chat '@{chat.chat_name}'"
                     )
@@ -308,9 +299,9 @@ async def notify_sleepy_members() -> None:
                                     admin.id,
                                     f"Привет! Похоже @{user.user_name} давно не проявлял активности в чате {chat.chat_name}. Напомни ему правила чата!",
                                 )
-                                logger.info(
-                                    f"Notified '@{admin.user_name}' about inactivity of '@{user.user_name}' in chat '@{chat.chat_name}'"
-                                )
+                                # logger.info(
+                                #     # f"Notified '@{admin.user_name}' about inactivity of '@{user.user_name}' in chat '@{chat.chat_name}'"
+                                # )
                             except TelegramForbiddenError:
                                 logger.warning(
                                     f"Cannot send notification to user @{admin.user_name}. They might have blocked the bot or didn't start a chat."
