@@ -1,5 +1,7 @@
+import os
 from sqlmodel import Field, Session, SQLModel, create_engine, select, Relationship
 from sqlalchemy import BigInteger
+
 
 class ChatAdmin(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", primary_key=True, sa_type=BigInteger)
@@ -97,7 +99,10 @@ def members_to_notify_by_chat(
     return members_to_notify
 
 
-engine = create_engine("postgresql://postgres:DUeszCCfwEObyTBtRbsnIerGrSQvWKgS@postgres.railway.internal:5432/railway")
+db_url = os.getenv("DATABASE_URL")
+if not db_url:
+    raise RuntimeError("DATABASE_URL environment variable not set")
+engine = create_engine(db_url)
 
 
 def db_init() -> None:
