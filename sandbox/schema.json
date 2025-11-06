@@ -1,0 +1,117 @@
+{
+  "$defs": {
+    "CompetitorsEngagement": {
+      "properties": {
+        "comp_one": {
+          "default": false,
+          "description": "Engagement status for competitor one",
+          "title": "Comp One",
+          "type": "boolean"
+        },
+        "comp_two": {
+          "default": false,
+          "description": "Engagement status for competitor two",
+          "title": "Comp Two",
+          "type": "boolean"
+        }
+      },
+      "title": "CompetitorsEngagement",
+      "type": "object"
+    },
+    "Metrics": {
+      "properties": {
+        "views": {
+          "description": "Number of views for the news item",
+          "title": "Views",
+          "type": "integer"
+        },
+        "likes": {
+          "description": "Number of likes for the news item",
+          "title": "Likes",
+          "type": "integer"
+        },
+        "comments": {
+          "description": "Number of comments on the news item",
+          "title": "Comments",
+          "type": "integer"
+        },
+        "reposts": {
+          "description": "Number of reposts of the news item",
+          "title": "Reposts",
+          "type": "integer"
+        },
+        "freshness": {
+          "description": "Time in seconds passed since the news item was published",
+          "title": "Freshness",
+          "type": "number"
+        },
+        "competitors": {
+          "$ref": "#/$defs/CompetitorsEngagement",
+          "description": "Engagement status for competitors"
+        }
+      },
+      "required": [
+        "views",
+        "likes",
+        "comments",
+        "reposts",
+        "freshness",
+        "competitors"
+      ],
+      "title": "Metrics",
+      "type": "object"
+    },
+    "NewsItem": {
+      "properties": {
+        "title": {
+          "description": "The title of the news item",
+          "title": "Title",
+          "type": "string"
+        },
+        "content": {
+          "description": "The content of the news item",
+          "title": "Content",
+          "type": "string"
+        },
+        "url": {
+          "default": "",
+          "description": "The URL of the news item",
+          "title": "Url",
+          "type": "string"
+        },
+        "origin": {
+          "description": "The origin/source name of the news item",
+          "title": "Origin",
+          "type": "string"
+        },
+        "metrics": {
+          "$ref": "#/$defs/Metrics",
+          "description": "Engagement metrics for the news item"
+        }
+      },
+      "required": [
+        "title",
+        "content",
+        "origin",
+        "metrics"
+      ],
+      "title": "NewsItem",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "news": {
+      "description": "List of news items",
+      "items": {
+        "$ref": "#/$defs/NewsItem"
+      },
+      "title": "News",
+      "type": "array"
+    }
+  },
+  "required": [
+    "news"
+  ],
+  "title": "News",
+  "type": "object"
+}

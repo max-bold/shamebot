@@ -29,6 +29,10 @@ if not token:
 
 import logging
 
+admin_url = getenv("ADMIN_URL")
+if not admin_url:
+    raise RuntimeError("ADMIN_URL environment variable not set")
+
 # logging.basicConfig(
 #     filename="bot.log", level=logging.INFO, encoding="utf-8", filemode="w", force=True
 # )
@@ -63,7 +67,7 @@ async def command_admin_handler(message: Message) -> None:
         f"Got '/admin' command from '@{message.from_user.username if message.from_user else 'unknown'}'"
     )
     if message.from_user:
-        url = f"https://shamebot-admin.up.railway.app/?admin={message.from_user.id}"  # <- сюда свой URL
+        url = f"https://{admin_url}/?admin={message.from_user.id}"  # <- сюда свой URL
 
         kb = InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="Панель настроек", url=url)]]
